@@ -4,47 +4,55 @@
 #include "timer.h"
 #include <omp.h>
 
-#define LENGTH 5000
+#define LENGTH 70000
 
 __global__ void prefixSum(int *in, int *out, int length) {
     int i = blockDim.x * blockIdx.x + threadIdx.x;
 
-    __shared__ int temp[2][LENGTH];
+    __shared__ int temp[4096];
     int buffer_in = 0;
     int buffer_out = 1;
+    int tempSum = 0;
 
 
-    temp[buffer_in][i] = in[i];
-    //printf("thread: %d / data sent to shared memory: %d\n", i, temp[buffer_in][i]);
+    temp[buffer_in * blockDim.x + threadIdx.x] = in[i];
+    //printf("thread: %d / data sent to shared memory: %d\n", i, temp[buffer_in * blockDim.x + threadIdx.x]);
 
     __syncthreads();
 
-    for(int offset = 1; offset <= length/gridDim.x; offset *= 2) {
-
-        if(i >= offset) {
-            temp[buffer_out][i] = temp[buffer_in][i - offset] + temp[buffer_in][i];
+    for(int offset = 1; offset <= blockDim.x; offset *= 2) {
+        //printf("thread: %d / offset: %d / blockDim.x: %d\n", i, offset, blockDim.x);
+        if(threadIdx.x >= offset) {
+            temp[buffer_out * blockDim.x + threadIdx.x] = temp[buffer_in * blockDim.x + threadIdx.x - offset] + temp[buffer_in * blockDim.x + threadIdx.x];
         }
         else {
-            temp[buffer_out][i] = temp[buffer_in][i];
+            temp[buffer_out * blockDim.x + threadIdx.x] = temp[buffer_in * blockDim.x + threadIdx.x];
         }
+        //printf("thread: %d / data sent to shared memory: %d\n", i, temp[buffer_out * blockDim.x + threadIdx.x]);
         __syncthreads();
 
         // switch in and out buffer portions of temp array
         buffer_out = 1 - buffer_out;
         buffer_in = 1 - buffer_out;
     }
-    out[i] = temp[buffer_out][i];
 
-    //__syncthreads();
-
+    out[i] = temp[buffer_out * blockDim.x + threadIdx.x];
+    //tempSum = temp[buffer_out * blockDim.x + blockDim.x - 1];
+    //printf("thread: %d / data sent to shared memory: %d\n", i, out[i]);
+    //printf("thread: %d / data sent to shared memory: %d\n", i, temp[buffer_out * blockDim.x + threadIdx.x]);
+    __syncthreads();
     
     for(int j = 0; j < gridDim.x; j++) {
         if(i > blockDim.x * j + threadIdx.x) {
-            temp[buffer_out][i] += out[blockDim.x * j + blockDim.x - 1];
-            //__syncthreads();
+            //printf("j = %d data = %d / %d\n", j, temp[buffer_out * blockDim.x + threadIdx.x], out[blockDim.x * j + blockDim.x - 1]);
+            tempSum = out[blockDim.x * j + blockDim.x - 1];
+            temp[buffer_out * blockDim.x + threadIdx.x] += tempSum;
         }
+        __syncthreads();
+        //printf("tempSum = %d\n", tempSum);
     }
-    out[i] = temp[buffer_out][i];
+    out[i] = temp[buffer_out * blockDim.x + threadIdx.x];
+    //printf("thread: %d / data sent to shared memory: %d\n", i, out[i]);
 }
 
 // prefix sum on CPU (not parallel)
@@ -74,12 +82,6 @@ int main() {
     printf("Length = %d\n", paddedLength);
     int bytes = sizeof(int) * paddedLength;
 
-    
-
-    // create CUDA events
-    cudaEvent_t start, stop;
-    cudaEventCreate(&start);
-    cudaEventCreate(&stop);
 
     // allocate host memory for int array and initialize it
     cudaMallocHost((void**)&h_in, bytes);
@@ -88,15 +90,18 @@ int main() {
     cudaMallocHost((void**)&h_cpu, bytes);
     initArray(h_in, paddedLength);
 
+    printf("Array initialized\n");
+
+    /*
     for(int i = 0; i < LENGTH; i++) {
         printf("%d ", h_in[i]);
-    }
+    }*/
     printf("\n\n");
 
-    StartTimer();
     // prefix sum on CPU
     prefixSumCPU(h_in, h_cpu, paddedLength);
-    const double tElapsedCPU = GetTimer();
+
+    printf("CPU Done\n");
 
     // allocate device memory for array and copy array from host to device
     cudaMalloc((void**)&d_in, bytes);
@@ -105,19 +110,14 @@ int main() {
 
     // set thread block and grid size (can only use 1 thread block)
     int gridSize = 64;
-    int blockSize = LENGTH / gridSize;
-    printf("GPU compute\n");
+    int blockSize = ceil(paddedLength / gridSize);
 
-    cudaEventRecord(start);
     prefixSum<<<gridSize, blockSize>>>(d_in, d_out, paddedLength);
-    cudaEventRecord(stop);
+
+    printf("GPU Done\n");
 
     cudaMemcpy(h_out, d_out, bytes, cudaMemcpyDeviceToHost);
-
-    cudaEventSynchronize(stop);
-    float milliseconds = 0;
-    cudaEventElapsedTime(&milliseconds, start, stop);
-
+    /*
     for(int i = 0; i < LENGTH; i++) {
         printf("%d ", h_out[i]);
     }
@@ -128,18 +128,16 @@ int main() {
         printf("%d ", h_cpu[i]);
     }
     printf("\n\n");
-
+    */
     for(int i = 0; i < LENGTH; i++) {
         if(h_out[i] != h_cpu[i]) {
+            printf("i: %d / GPU: %d / CPU: %d\n", i, h_out[i], h_cpu[i]);
             printf("Elements are wrong\n");
             break;
         }
     }
 
-    printf("GPU Time: %f ms\n", milliseconds);
-
-    printf("CPU Time: %f ms\n", tElapsedCPU);
-
+    printf("Done\n");
     // free memory on device and host
     cudaFree(d_in);
     cudaFree(d_out);
