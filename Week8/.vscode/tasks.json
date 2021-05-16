@@ -1,0 +1,49 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "type": "shell",
+        "label": "nvcc build active file",
+        "command": "nvcc",
+        "args": ["${file}", "-o", "${fileDirname}/${fileBasenameNoExtension}_cuda"],
+        "problemMatcher": ["$gcc"],
+        "group": {
+          "kind": "build",
+          "isDefault": true
+        }
+      },
+      {
+        "type": "shell",
+        "label": "gcc build active file",
+        "command": "gcc",
+        "args": ["${file}", "-o", "${fileDirname}/${fileBasenameNoExtension}", "-fopenmp", "-lm"],
+        "problemMatcher": ["$gcc"],
+        "group": {
+          "kind": "build",
+          "isDefault": true
+        }
+      },
+      {
+        "type": "shell",
+        "label": "nvcc run active file",
+        "command": "",
+        "args": ["./${fileBasenameNoExtension}_cuda"],
+        "problemMatcher": [],
+        "group": {
+          "kind": "test",
+          "isDefault": true
+        }
+      },
+      {
+        "type": "shell",
+        "label": "gcc run active file",
+        "command": "",
+        "args": ["./${fileBasenameNoExtension}"],
+        "problemMatcher": [],
+        "group": {
+          "kind": "test",
+          "isDefault": true
+        }
+      }
+    ]
+  }
