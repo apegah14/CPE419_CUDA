@@ -4,8 +4,9 @@
 #include "timer.h"
 #include <omp.h>
 
-#define LENGTH 70000
+#define LENGTH 55000
 
+// segments scan sum on the 
 __global__ void prefixSum(int *in, int *out, int length) {
     int i = blockDim.x * blockIdx.x + threadIdx.x;
 
