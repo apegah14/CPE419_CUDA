@@ -23,12 +23,16 @@ class FractionalKnapSack:
     @staticmethod
     def getMaxValue(wt, val, capacity):
         """function to get maximum value """
+        #start = time.time()
         iVal = []
         for i in range(len(wt)):
             iVal.append(ItemValue(wt[i], val[i], i))
  
         # sorting items by value
         iVal.sort(reverse=True)
+
+        #t = time.time() - start
+        #print(t)
  
         totalValue = 0
         for i in iVal:
@@ -51,11 +55,11 @@ if __name__ == "__main__":
     wt = []
     val = []
 
-    for i in range(30000):
+    for i in range(300000):
         wt.append(random.randint(1, 100))
         val.append(i)
 
-    capacity = 500000
+    capacity = 500000000
     start = time.time()
     # Function call
     maxValue = FractionalKnapSack.getMaxValue(wt, val, capacity)
