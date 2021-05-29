@@ -1,9 +1,7 @@
-import cupy as cp
-from numba import jit
+import numpy as cp
 import random
 import time
 
-@jit
 def getMaxValue(iVal, capacity):
 
     totalValue = 0
@@ -24,6 +22,7 @@ if __name__ == "__main__":
     random.seed(2222)
     tempwt = []
     tempval = []
+    capacity = 5000000
 
     for i in range(3000000):
         tempwt.append(random.randint(1, 100))
@@ -31,8 +30,6 @@ if __name__ == "__main__":
 
     wt = cp.array(tempwt)
     val = cp.array(tempval)
-
-    capacity = 5000000
     
     start = time.time()
     cost = cp.floor_divide(val, wt)
@@ -42,14 +39,14 @@ if __name__ == "__main__":
     # sorting items by value
     sorted_iVal = iVal[cp.argsort(-iVal[:, -1])]
 
-    iVal_cpu = cp.asnumpy(sorted_iVal)
+    #iVal_cpu = cp.asnumpy(sorted_iVal)
 
     #print(iVal)
     #print(sorted_iVal)
     #print("Finding Max")
     
 
-    maxValue = getMaxValue(iVal_cpu, capacity)
+    maxValue = getMaxValue(sorted_iVal, capacity)
 
     t = time.time() - start
     print(t)

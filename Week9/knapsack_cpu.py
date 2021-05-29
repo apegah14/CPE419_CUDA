@@ -55,11 +55,11 @@ if __name__ == "__main__":
     wt = []
     val = []
 
-    for i in range(300000):
+    for i in range(3000000):
         wt.append(random.randint(1, 100))
-        val.append(i)
+        val.append(i + 1)
 
-    capacity = 500000000
+    capacity = 5000000
     start = time.time()
     # Function call
     maxValue = FractionalKnapSack.getMaxValue(wt, val, capacity)
