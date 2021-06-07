@@ -6,7 +6,7 @@
 #include <pthread.h>
 #include <stdint.h>
  
-#define SAMPLES 40000000
+#define SAMPLES 256000000
 #define THREADS 8
 int num_inside_pt = 0;
 

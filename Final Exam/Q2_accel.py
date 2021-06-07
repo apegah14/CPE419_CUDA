@@ -1,25 +1,21 @@
-import csv
 from os import sep
 import numpy as np
 import matplotlib.pyplot as plt
 import time
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
-from itertools import product
-# import pandas as pd
 from multiprocessing import Pool
-from numba import jit
+from numba import njit, jit
+import pandas as pd
 
 
 def loadCSV(filename):
-	'''
+	'''	
 	function to load dataset
 	'''
-	with open(filename,"r") as csvfile:
-		lines = csv.reader(csvfile)
-		dataset = list(lines)
-		for i in range(len(dataset)):
-			dataset[i] = [float(x) for x in dataset[i]]	
-	return np.array(dataset)
+	df = pd.read_csv(filename, header=None)
+	np_dataset = np.array(df.values)
+	np_dataset.astype(float)
+	return np_dataset
 
 
 def normalize(X):
@@ -44,8 +40,12 @@ def log_gradient(beta, X, y):
 	'''
 	logistic gradient function
 	'''
+	#grad_pool = Pool(processes=4)
 	first_calc = logistic_func(beta, X) - y.reshape(X.shape[0], -1)
 	final_calc = np.dot(first_calc.T, X)
+	#final_calc = grad_pool.starmap(np_dot, [(first_calc.T, X)])
+	#grad_pool.close()
+	#final_calc = np.dot(first_calc.T, X)
 	#print(final_calc)
 	return final_calc
 
@@ -110,7 +110,6 @@ def plot_reg(X, y, beta):
 	plt.ylabel('x2')
 	plt.legend()
 	plt.show()
-	
 
 	
 if __name__ == "__main__":
@@ -149,3 +148,7 @@ if __name__ == "__main__":
 	
 	# plotting regression line
 	plot_reg(X, y, beta)
+'''
+def np_dot(a, b):
+	return np.dot(a, b)
+'''

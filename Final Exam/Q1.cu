@@ -1,12 +1,17 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
+#include <time.h>
 #include <curand.h>
 #include <curand_kernel.h>
 
+#define SAMPLES 40000000
+
 __global__ void setup_kernel(curandState *state) {
     int tid = threadIdx.x + blockIdx.x * blockDim.x;
-    curand_init(1234, tid, 0, &state[tid]);
+    if (tid < SAMPLES) {
+        curand_init(tid, 0, 0, &state[tid]);
+    }
 }
 
 
@@ -17,12 +22,16 @@ __global__ void sampleCUDA(int *num_inside, curandState *states) {
 
     num_inside_block[threadIdx.x] = 0;
     __syncthreads();
-    float x = curand_uniform(&states[tid]);
-    float y = curand_uniform(&states[tid]);
-    //printf("thread: %d / x = %.3f / y = %.3f\n", tid, x, y);
-    if (sqrt((x * x) + (y * y)) <= 1) {
-        num_inside_block[threadIdx.x] = 1;
+    float x = 0;
+    float y = 0;
+    if (tid < SAMPLES) {
+        x = curand_uniform(&states[tid]);
+        y = curand_uniform(&states[tid]);
+        if (sqrt((x * x) + (y * y)) <= 1) {
+            num_inside_block[threadIdx.x] = 1;
+        }
     }
+    //printf("thread: %d / x = %.3f / y = %.3f\n", tid, x, y);
     __syncthreads();
 
     for (int i = 1; i < blockDim.x; i *= 2) {
@@ -58,15 +67,17 @@ __global__ void reductionSum(int *num_inside, float *total) {
     }
 
     if (threadIdx.x == 0) {
-        total[0] = reduction[threadIdx.x];
+        atomicAdd(&total[0], reduction[threadIdx.x]);
+        //total[blockIdx.x] = reduction[threadIdx.x];
         //printf("total: %d\n", reduction[threadIdx.x]);
     }
 }
 
 int main() {
-    int samples = 1024 * 1000;
+    int samples = 40000000;
     int block_size = 1024;
     int grid_size = (samples + block_size - 1) / block_size;
+    int reduction_grid = (grid_size + block_size - 1) / block_size;
     float *total_cpu = (float*)malloc(sizeof(float));
 
     int *num_inside_gpu;
@@ -79,10 +90,23 @@ int main() {
     curandState_t *states;
     cudaMalloc((void**) &states, samples * sizeof(curandState_t));
     setup_kernel<<<grid_size, block_size>>>(states);
+    cudaDeviceSynchronize();
+
+    cudaError_t error = cudaGetLastError();
+    if (error != cudaSuccess) {
+        fprintf(stderr, "ERROR: %s \n", cudaGetErrorString(error));
+    }
 
     sampleCUDA<<<grid_size, block_size>>>(num_inside_gpu, states);
+    cudaDeviceSynchronize();
 
-    reductionSum<<<1, 1024>>>(num_inside_gpu, total);
+    error = cudaGetLastError();
+    if (error != cudaSuccess) {
+        fprintf(stderr, "ERROR: %s \n", cudaGetErrorString(error));
+    }
+    cudaFree(states);
+
+    reductionSum<<<reduction_grid, block_size>>>(num_inside_gpu, total);
     cudaMemcpy(total_cpu, total, sizeof(float), cudaMemcpyDeviceToHost);
 
     float pi = (4 * total_cpu[0]) / samples;
